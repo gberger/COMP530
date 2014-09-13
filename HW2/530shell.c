@@ -13,6 +13,8 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 char **split(char *str, char *sep) {
 	char **res = NULL;
@@ -48,6 +50,33 @@ char *trim(char *s) {
     return rtrim(ltrim(s)); 
 }
 
+int check_executable(char *path) {
+	struct stat sb;
+	return stat(path, &sb) == 0 && sb.st_mode & S_IXUSR;
+}
+
+char *search_path(char *cmd, char **paths){
+	char *possible = (char*)malloc(sizeof(char) * (strlen(cmd) + 1));
+	strcpy(possible, cmd);
+
+	if(check_executable(possible)){
+		return possible;
+	}
+
+	while(*paths != NULL){
+		possible = (char*)realloc(possible, (sizeof(char)) * (strlen(*paths) + 1 + strlen(cmd) + 1));
+		sprintf(possible, "%s/%s", *paths, cmd);
+
+		if(check_executable(possible)) {
+			return possible;
+		}
+
+		paths++;
+	}
+
+	return NULL;
+}
+
 void main_loop(void) {
 	char *line = NULL;
 	char *trimmed;
@@ -57,17 +86,29 @@ void main_loop(void) {
 	pid_t pid;
 	int status;
 
+	char *path = getenv("PATH");
+	char **paths = split(path, ":");
+
+	char *exec_path;
+
 	printf("%% ");
 	while (getline(&line, &len, stdin) != -1) {
 		trimmed = trim(line);
 
 		cmd = split(trimmed, " ");
 
-		pid = fork();
-		if (pid == 0) {
-			execvp(cmd[0], cmd);
+		exec_path = search_path(cmd[0], paths);
+		
+		if(exec_path != NULL) {
+			pid = fork();
+			if (pid == 0) {
+				execv(exec_path, cmd);
+			}
+			waitpid(pid, &status, 0);
+			free(exec_path);
+		} else {
+			printf("Not found.");
 		}
-		waitpid(pid, &status, 0);
 
 		printf("%% ");
 	}
