@@ -96,9 +96,8 @@ void main_loop(void) {
 		trimmed = trim(line);
 
 		cmd = split(trimmed, " ");
-
 		exec_path = search_path(cmd[0], paths);
-		
+
 		if(exec_path != NULL) {
 			pid = fork();
 			if (pid == 0) {
@@ -107,7 +106,7 @@ void main_loop(void) {
 			waitpid(pid, &status, 0);
 			free(exec_path);
 		} else {
-			printf("Not found.");
+			printf("%s: command not found\n", cmd[0]);
 		}
 
 		printf("%% ");
