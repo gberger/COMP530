@@ -93,23 +93,24 @@ void main_loop(void) {
 
 	printf("%% ");
 	while (getline(&line, &len, stdin) != -1) {
-		trimmed = trim(line);
+		pid = fork();
 
-		cmd = split(trimmed, " ");
-		exec_path = search_path(cmd[0], paths);
+		if(pid == 0) {
+			trimmed = trim(line);
 
-		if(exec_path != NULL) {
-			pid = fork();
-			if (pid == 0) {
+			cmd = split(trimmed, " ");
+			exec_path = search_path(cmd[0], paths);
+
+			if(exec_path != NULL) {
 				execv(exec_path, cmd);
+			} else {
+				printf("%s: command not found\n", cmd[0]);
+				exit(1);
 			}
-			waitpid(pid, &status, 0);
-			free(exec_path);
 		} else {
-			printf("%s: command not found\n", cmd[0]);
+			waitpid(pid, &status, 0);
+			printf("%% ");			
 		}
-
-		printf("%% ");
 	}
 
 	if (line) {
