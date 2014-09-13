@@ -35,19 +35,19 @@ char **split(char *str, char *sep) {
 }
 
 char *ltrim(char *s) {
-    while(isspace(*s)) s++;
-    return s;
+	while(isspace(*s)) s++;
+	return s;
 }
 
 char *rtrim(char *s) {
-    char* back = s + strlen(s);
-    while(isspace(*--back));
-    *(back+1) = '\0';
-    return s;
+	char* back = s + strlen(s);
+	while(isspace(*--back));
+	*(back+1) = '\0';
+	return s;
 }
 
 char *trim(char *s) {
-    return rtrim(ltrim(s)); 
+	return rtrim(ltrim(s)); 
 }
 
 int check_executable(char *path) {
@@ -97,7 +97,6 @@ void main_loop(void) {
 
 		if(pid == 0) {
 			trimmed = trim(line);
-
 			cmd = split(trimmed, " ");
 			exec_path = search_path(cmd[0], paths);
 
