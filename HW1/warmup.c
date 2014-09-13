@@ -1,3 +1,13 @@
+/*
+   GUILHERME DE CAMPOS LIMA BERGER
+   PID 720535294
+  
+   I strive to uphold the University values of respect, 
+   responsibility, discovery, and excellence. On my honor, 
+   I pledge that I have neither given nor received 
+   unauthorized assistance on this work.
+*/
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -36,7 +46,7 @@ int main(void) {
 		if(c == '\n') {
 			append_char(str, ' ');
 		} else if(c == '*') {
-			if(last_was_star) {
+			if(last_was_star == 1) {
 				replace_last_char(str, '^');
 				last_was_star = 0;
 			} else {
