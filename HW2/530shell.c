@@ -14,6 +14,24 @@
 #include <ctype.h>
 #include <unistd.h>
 
+char **split(char *str, char *sep) {
+	char **res = NULL;
+	char *p;
+	int n_spaces = 0;
+
+	p = strtok(str, sep);
+	while(p) {
+		res = realloc(res, sizeof (char*) * ++n_spaces);
+		res[n_spaces-1] = p;
+		p = strtok(NULL, sep);
+	}
+
+	res = realloc(res, sizeof (char*) * (n_spaces+1));
+	res[n_spaces] = NULL;
+
+	return res;
+}
+
 char *ltrim(char *s) {
     while(isspace(*s)) s++;
     return s;
@@ -36,33 +54,21 @@ void main_loop(void) {
 	size_t len = 0;
 
 	char **cmd = NULL;
-	char *p;
-	int n_spaces = 0;
 	pid_t pid;
 	int status;
 
 	printf("%% ");
 	while (getline(&line, &len, stdin) != -1) {
 		trimmed = trim(line);
-		/* split line into argv parts */
-		p = strtok(trimmed, " ");
-		while (p) {
-		  cmd = realloc(cmd, sizeof (char*) * ++n_spaces);
-		  cmd[n_spaces-1] = p;
-		  p = strtok(NULL, " ");
-		}
-		cmd = realloc(cmd, sizeof (char*) * (n_spaces+1));
-		cmd[n_spaces] = 0;
-		/* end split */
+
+		cmd = split(trimmed, " ");
 
 		pid = fork();
 		if (pid == 0) {
-			execvp(cmd[0], cmd+1);
+			execvp(cmd[0], cmd);
 		}
 		waitpid(pid, &status, 0);
 
-		cmd = NULL;
-		n_spaces = 0;
 		printf("%% ");
 	}
 
