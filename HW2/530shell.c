@@ -45,12 +45,24 @@ char **split_separator(char *str, char *sep) {
 	p = strtok(str, sep);
 	while(p) {
 		res = realloc(res, sizeof (char*) * ++n_spaces);
+
+		if(res == NULL){
+			fprintf(stderr, "Error while allocating!\n");
+			exit(1);
+		}
+
 		res[n_spaces-1] = p;
 		p = strtok(NULL, sep);
 	}
 
 	// Extend one more time, for the final NULL pointer
 	res = realloc(res, sizeof (char*) * (n_spaces+1));
+
+	if(res == NULL){
+		fprintf(stderr, "Error while allocating!\n");
+		exit(1);
+	}
+
 	res[n_spaces] = NULL;
 
 	return res;
@@ -104,6 +116,12 @@ int check_executable(char *path) {
 */
 char **get_paths() {
 	char *path = getenv("PATH");
+
+	if(path == NULL){
+		fprintf(stderr, "Error while getting env PATH!\n");
+		exit(1);
+	}
+
 	char **paths = split_separator(path, ":");
 	return paths;
 }
@@ -120,7 +138,19 @@ char **get_paths() {
  */
 char *search_path(char *cmd, char **paths){
 	char *cwd = getenv("PWD");
-	char *possible = (char*)malloc(sizeof(char) * (strlen(cwd) + 1 + strlen(cmd) + 1));
+	char *possible;
+
+	if(cwd == NULL){
+		fprintf(stderr, "Error while getting env PWD!\n");
+		exit(1);
+	}
+
+	possible = (char*)malloc(sizeof(char) * (strlen(cwd) + 1 + strlen(cmd) + 1));
+
+	if(possible == NULL){
+		fprintf(stderr, "Error while allocating!\n");
+		exit(1);
+	}
 
 	sprintf(possible, "%s/%s", cwd, cmd);
 
@@ -133,6 +163,12 @@ char *search_path(char *cmd, char **paths){
 	// Try each path.
 	while(*paths != NULL){
 		possible = (char*)realloc(possible, (sizeof(char)) * (strlen(*paths) + 1 + strlen(cmd) + 1));
+
+		if(possible == NULL){
+			fprintf(stderr, "Error while allocating!\n");
+			exit(1);
+		}
+
 		sprintf(possible, "%s/%s", *paths, cmd);
 
 		if(check_executable(possible)) {
@@ -167,6 +203,7 @@ void main_loop(void) {
 		if(pid < 0) {
 			//error!
 			fprintf(stderr, "Error while forking!\n");
+			exit(1);
 		} else if(pid == 0) {
 			trimmed = trim(line);
 			argv = split_separator(trimmed, " \t\n\v\f\r");
