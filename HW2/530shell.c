@@ -131,6 +131,7 @@ char **get_paths() {
 	given `paths`, the result of `get_paths`, checks if any of these
 	directories enumerated in `paths` contains a file named `cmd` that
 	is executable (as defined by `check_executable`).
+	If `cmd` starts with a '/', it's an absolute path. Return it.
 	If there is a file in the current working directory that has the
 	same name as `cmd` and is executable, its full path is returned.
 	If a match is found, the full path of the executable is returned.
@@ -145,22 +146,29 @@ char *search_path(char *cmd, char **paths){
 		exit(1);
 	}
 
-	possible = (char*)malloc(sizeof(char) * (strlen(cwd) + 1 + strlen(cmd) + 1));
+	// First, we if it starts with a slash, it is an absolute path. Return it.
+	if(cmd[0] == '/') {
+		possible = malloc(sizeof(char) * (strlen(cmd)+1));
+		if(possible == NULL) {
+			fprintf(stderr, "Error while allocating!\n");
+			exit(1);
+		}
+		strcpy(possible, cmd);
+		return possible;
+	}
 
+	// Then, we check the cwd.
+	possible = (char*)malloc(sizeof(char) * (strlen(cwd) + 1 + strlen(cmd) + 1));
 	if(possible == NULL){
 		fprintf(stderr, "Error while allocating!\n");
 		exit(1);
 	}
-
 	sprintf(possible, "%s/%s", cwd, cmd);
-
-	// `possible` starts out in the cwd.
-	// If it is executable, it's in the currect working directory, return it.
 	if(check_executable(possible)){
 		return possible;
 	}
 
-	// Try each path.
+	// Finally, try each path.
 	while(*paths != NULL){
 		possible = (char*)realloc(possible, (sizeof(char)) * (strlen(*paths) + 1 + strlen(cmd) + 1));
 
