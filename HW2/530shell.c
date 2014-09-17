@@ -164,13 +164,19 @@ void main_loop(void) {
 	while (getline(&line, &len, stdin) != -1) {
 		pid = fork();
 
-		if(pid == 0) {
+		if(pid < 0) {
+			//error!
+			fprintf(stderr, "Error while forking!\n");
+		} else if(pid == 0) {
 			trimmed = trim(line);
 			argv = split_separator(trimmed, " \t\n\v\f\r");
 			exec_path = search_path(argv[0], paths);
 
 			if(exec_path != NULL) {
 				execv(exec_path, argv);
+				// if we are here, an error has occurred
+				fprintf(stderr, "Error while executing!\n");
+				exit(1);
 			} else {
 				printf("%s: command not found\n", argv[0]);
 				exit(1);
