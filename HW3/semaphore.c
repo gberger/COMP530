@@ -8,6 +8,7 @@
    unauthorized assistance on this work.
 */
 
+#include <stdlib.h>
 #include <assert.h>
 #include "st.h"
 #include "semaphore.h"
