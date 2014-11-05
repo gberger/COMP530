@@ -144,9 +144,6 @@ int str_contains_char(char *str, char c){
   given `paths`, the result of `get_paths`, checks if any of these
   directories enumerated in `paths` contains a file named `cmd` that
   is executable (as defined by `check_executable`).
-  If `cmd` starts with a '/', it's an absolute path. Return it.
-  If there is a file in the current working directory that has the
-  same name as `cmd` and is executable, its full path is returned.
   If a match is found, the full path of the executable is returned.
   Otherwise, NULL is returned.
  */
