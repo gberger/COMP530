@@ -129,6 +129,16 @@ char **get_paths() {
   return paths;
 }
 
+int str_contains_char(char *str, char c){
+  int i, len = strlen(str);
+  for(i = 0; i < len; i++) {
+    if(str[i] == c){
+      return 1;
+    }
+  }
+  return 0;
+}
+
 /*
   Given a program name `cmd` (such as "ls"), and
   given `paths`, the result of `get_paths`, checks if any of these
@@ -160,18 +170,9 @@ char *search_path(char *cmd, char **paths){
     return possible;
   }
 
-  // Then, we check the cwd.
-  possible = (char*)malloc(sizeof(char) * (strlen(cwd) + 1 + strlen(cmd) + 1));
-  if(possible == NULL){
-    fprintf(stderr, "Error while allocating!\n");
-    exit(1);
-  }
-  sprintf(possible, "%s/%s", cwd, cmd);
-  if(check_executable(possible)){
-    return possible;
-  }
+  possible = (char*)malloc(sizeof(char));
 
-  // Finally, try each path.
+  // Then, try each path.
   while(*paths != NULL){
     possible = (char*)realloc(possible, (sizeof(char)) * (strlen(*paths) + 1 + strlen(cmd) + 1));
 
@@ -187,6 +188,19 @@ char *search_path(char *cmd, char **paths){
     }
 
     paths++;
+  }
+
+  // Finally, we check the cwd, but only if the command name has '/' on it.
+  if(str_contains_char(cmd, '/')){
+      possible = (char*)realloc(possible, sizeof(char) * (strlen(cwd) + 1 + strlen(cmd) + 1));
+    if(possible == NULL){
+      fprintf(stderr, "Error while allocating!\n");
+      exit(1);
+    }
+    sprintf(possible, "%s/%s", cwd, cmd);
+    if(check_executable(possible)){
+      return possible;
+    }
   }
 
   free(possible);
