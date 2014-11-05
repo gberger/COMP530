@@ -25,9 +25,23 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
+#include <ctype.h>
 
 #include "Socket.h"
 #include "HW5.h" /* definitions common to client and server */
+
+/* Returns 1 if the given str consists entirely of
+ * whitespace characters, as determined by `isspace`.
+ */
+int is_all_whitespace(char *str) {
+  int i, len = strlen(str);
+  for(i = 0; i < len; i++) {
+    if(!isspace(str[i])) {
+      return 0;
+    }
+  }
+  return 1;
+}
 
 int main(int argc, char* argv[]) {
   int i, c, rc;
@@ -61,6 +75,13 @@ int main(int argc, char* argv[]) {
    * Continue getting strings from stdin until EOF.
    */ 
   while ((fgets(line_data, sizeof(line_data), stdin) != NULL)) {
+
+    if(is_all_whitespace(line_data)) {
+      // don't bother sending blank commands to server
+      printf("%% ");
+      continue;
+    }
+
     // count includes '\0'
     count = strlen(line_data) + 1;
 

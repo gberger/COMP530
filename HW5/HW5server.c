@@ -47,6 +47,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 
 #include "Socket.h"
 #include "HW5.h" /* definitions shared by client and server */
@@ -56,6 +57,144 @@
 
 
 void shell_service(Socket connect_socket);
+
+
+/*
+  Splits a given string `str` when any of the
+  separators present in the string `sep` occur.
+  The return is the address of a dynamically
+  allocated char* array, where the last entry
+  will be a pointer to NULL. Each char* in the
+  array is a word, as defined by the separator.
+  Remember to free after done.
+*/
+char **split_separator(char *str, char *sep) {
+  char **res = NULL;
+  char *p;
+  int n_spaces = 0;
+
+  // Refer to `strtok` documentation for details on this
+  p = strtok(str, sep);
+  while(p) {
+    n_spaces++;
+    res = realloc(res, sizeof(char*) * n_spaces);
+
+    if(res == NULL){
+      fprintf(stderr, "Error while allocating!\n");
+      exit(1);
+    }
+
+    res[n_spaces-1] = p;
+    p = strtok(NULL, sep);
+  }
+
+  // Extend one more time, for the final NULL pointer
+  res = realloc(res, sizeof(char*) * (n_spaces+1));
+
+  if(res == NULL){
+    fprintf(stderr, "Error while allocating!\n");
+    exit(1);
+  }
+
+  res[n_spaces] = NULL;
+
+  return res;
+}
+
+/*
+  Checks if a given path is a program executable by the current
+  user, according to `stat`.
+  Returns 1 (true) or 0 (false).
+*/
+int check_executable(char *path) {
+  // Details/source: http://stackoverflow.com/a/13098645
+  struct stat sb;
+  return stat(path, &sb) == 0 && sb.st_mode & S_IXUSR;
+}
+
+/*
+  Returns an array of strings, each one being a 
+  directory contained in the PATH env variable.
+  Remember to free.
+*/
+char **get_paths() {
+  char *path = getenv("PATH");
+
+  if(path == NULL){
+    fprintf(stderr, "Error while getting env PATH!\n");
+    exit(1);
+  }
+
+  char **paths = split_separator(path, ":");
+  return paths;
+}
+
+/*
+  Given a program name `cmd` (such as "ls"), and
+  given `paths`, the result of `get_paths`, checks if any of these
+  directories enumerated in `paths` contains a file named `cmd` that
+  is executable (as defined by `check_executable`).
+  If `cmd` starts with a '/', it's an absolute path. Return it.
+  If there is a file in the current working directory that has the
+  same name as `cmd` and is executable, its full path is returned.
+  If a match is found, the full path of the executable is returned.
+  Otherwise, NULL is returned.
+ */
+char *search_path(char *cmd, char **paths){
+  char *cwd = getenv("PWD");
+  char *possible;
+
+  if(cwd == NULL){
+    fprintf(stderr, "Error while getting env PWD!\n");
+    exit(1);
+  }
+
+  // First, we if it starts with a slash, it is an absolute path. Return it.
+  if(cmd[0] == '/') {
+    possible = malloc(sizeof(char) * (strlen(cmd)+1));
+    if(possible == NULL) {
+      fprintf(stderr, "Error while allocating!\n");
+      exit(1);
+    }
+    strcpy(possible, cmd);
+    return possible;
+  }
+
+  // Then, we check the cwd.
+  possible = (char*)malloc(sizeof(char) * (strlen(cwd) + 1 + strlen(cmd) + 1));
+  if(possible == NULL){
+    fprintf(stderr, "Error while allocating!\n");
+    exit(1);
+  }
+  sprintf(possible, "%s/%s", cwd, cmd);
+  if(check_executable(possible)){
+    return possible;
+  }
+
+  // Finally, try each path.
+  while(*paths != NULL){
+    possible = (char*)realloc(possible, (sizeof(char)) * (strlen(*paths) + 1 + strlen(cmd) + 1));
+
+    if(possible == NULL){
+      fprintf(stderr, "Error while allocating!\n");
+      exit(1);
+    }
+
+    sprintf(possible, "%s/%s", *paths, cmd);
+
+    if(check_executable(possible)) {
+      return possible;
+    }
+
+    paths++;
+  }
+
+  free(possible);
+
+  // If no match, return NULL.
+  return NULL;
+}
+
 
 int main(int argc, char* argv[]) {
   // variables to hold socket descriptors
@@ -119,6 +258,14 @@ void shell_service(Socket connect_socket) {
   char input_data[MAX_LINE];
   char info_string[INFOSTR_SIZE];
 
+  // stuff necessary for forking and execing
+  pid_t fork_pid, term_pid;
+  char **argv = NULL;
+  char **paths = get_paths();
+  char *exec_path;
+  int status;
+  char exit_status;
+
   // setupd the temp file
   pid_t my_pid = getpid();
   char filename[FILENAME_SIZE] = {0};
@@ -129,8 +276,6 @@ void shell_service(Socket connect_socket) {
   printf("Filename: %s\n", filename);
 
   while (forever) { // actually, until EOF on connect socket
-    // open the tempfile. Also erases all contents
-    tmpfile = fopen(filename, "w");
 
     /* get a null-terminated string from the client on the data
      * transfer socket up to the maximim input line size. Continue 
@@ -140,7 +285,8 @@ void shell_service(Socket connect_socket) {
       c = Socket_getc(connect_socket);
       if (c == EOF) {
         // assume socket EOF ends service for this client
-        printf("End connection: %d\n", (int)connect_socket); 
+        printf("End connection: %d\n", (int)connect_socket);
+        remove(filename);
         return;
       } else {
         input_data[i] = c;
@@ -155,12 +301,62 @@ void shell_service(Socket connect_socket) {
       input_data[i-1] = '\0';
     }
 
-    // write to tempfile
-    fprintf(tmpfile, "%s", input_data);
-    fclose(tmpfile);
+    // Fork a new child process to parse the command line
+    // and execute it, redirecting stdout to the tmpfile
+    fork_pid = fork();
+
+    if(fork_pid < 0) {
+      perror("Failed on forking for a command"); 
+      exit(-1);
+    } else if(fork_pid == 0) {
+      // child, will execute the command
+
+      // redirect stdout contents to this file
+      tmpfile = freopen(filename, "w", stdout);
+
+      if(tmpfile == NULL){
+        perror("freopen failed!");
+        exit(-1);
+      }
+
+      // parse command line contents
+      argv = split_separator(input_data, " \t\n\v\f\r");
+      exec_path = search_path(argv[0], paths);
+
+      if(exec_path != NULL) {
+        execv(exec_path, argv);
+        // if we are here, an error has occurred
+        fprintf(stderr, "Error while executing!\n");
+      } else {
+        printf("%s: command not found\n", argv[0]);
+      }
+      free(argv);
+      free(exec_path);
+      fclose(tmpfile);
+      exit(-1);
+    } else {
+      // parent, will wait for the child
+      term_pid = waitpid(fork_pid, &status, 0);
+      if(term_pid == -1) {
+        perror("waitpid failed!");
+        remove(filename);
+        exit(-1);
+      } else {
+        if (WIFEXITED(status)) {
+          exit_status = WEXITSTATUS(status);
+        } else{
+          exit_status = -1;
+        }
+      }
+    }
 
     // set the file back to start for reading
     tmpfile = fopen(filename, "r");
+    if(tmpfile == NULL) {
+      perror("fopen failed!");
+      remove(filename);
+      exit(-1);
+    }
 
     // read from the file and send it back to the client
     while ((c = fgetc(tmpfile)) != EOF) {
@@ -168,11 +364,15 @@ void shell_service(Socket connect_socket) {
       if (rc == EOF) {
         // assume socket EOF ends service for this client
         printf("Socket_putc EOF or error\n");
+        remove(filename);
         return;
       }
     }
 
-    sprintf(info_string, "Informational string. Blabla. Input had size of %d.\n", strlen(input_data));
+    // close the tempfile
+    fclose(tmpfile);
+
+    sprintf(info_string, "Exit status: %d\n", exit_status);
 
     // +1 for including '\0'
     len = strlen(info_string) + 1;
@@ -181,12 +381,10 @@ void shell_service(Socket connect_socket) {
       if (rc == EOF) {
         // assume socket EOF ends service for this client
         printf("Socket_putc EOF or error\n");
+        remove(filename);
         return;
       }
     }
-
-    // close the tempfile
-    fclose(tmpfile);
   } 
   // end while loop of the service process
 
