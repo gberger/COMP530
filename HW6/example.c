@@ -17,6 +17,7 @@
 #include <unistd.h>    // sleep
 #include <sys/types.h> // kill
 #include <signal.h>    // kill
+#include <semaphore.h>
 // Library and custom includes
 
 #define MESSAGE_LENGTH 30
